@@ -80,10 +80,16 @@ namespace CoreCodeCamp.Controllers
         }
 
 
-        public async Task<ActionResult<CampModel>> Postx(CampModel model)
+        public async Task<ActionResult<CampModel>> Post(CampModel model)
         {
             try
             {
+                var existingCamp = await _repository.GetCampAsync(model.Moniker);
+                if (existingCamp != null)
+                {
+                    return BadRequest("Moniker in Use");
+                }
+
                 var location = _linkGenerator.GetPathByAction("Get", "Camps", new { moniker = model.Moniker });
 
                 if(string.IsNullOrWhiteSpace(location))
@@ -103,6 +109,53 @@ namespace CoreCodeCamp.Controllers
             }
 
             return BadRequest();
+        }
+
+        [HttpPut("{moniker}")]
+        public async Task<ActionResult<CampModel>> Put(string moniker, CampModel model)
+        {
+            try
+            {
+                var oldCamp = await _repository.GetCampAsync(model.Moniker);
+                if (oldCamp == null) return NotFound($"Could not find camp with moniker of {moniker}");
+
+                _mapper.Map(model, oldCamp);
+
+                if (await _repository.SaveChangesAsync())
+                {
+                    return _mapper.Map<CampModel>(oldCamp);
+                }
+            }
+            catch (Exception ex)
+            {
+                return this.StatusCode(StatusCodes.Status500InternalServerError, "Database Failure");
+            }
+
+            return BadRequest();
+        }
+
+        [HttpDelete("{moniker}")]
+        public async Task<ActionResult> Delete(string moniker)
+        {
+            try
+            {
+                var oldCamp = await _repository.GetCampAsync(moniker);
+                if (oldCamp == null) return NotFound();
+
+                _repository.Delete(oldCamp);
+
+                if (await _repository.SaveChangesAsync())
+                {
+                    return Ok();
+                }
+
+            }
+            catch (Exception)
+            {
+                return this.StatusCode(StatusCodes.Status500InternalServerError, "Database Failure");
+            }
+
+            return BadRequest("Failed to delete camp");
         }
     }
 }
